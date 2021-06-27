@@ -1,3 +1,5 @@
+[![Actions Status](https://github.com/avuserow/raku-sql-cantrip/workflows/test/badge.svg)](https://github.com/avuserow/raku-sql-cantrip/actions)
+
 NAME
 ====
 
@@ -8,6 +10,24 @@ SYNOPSIS
 
 ```raku
 use SQL::Cantrip;
+
+my $sql = SQL::Cantrip.new(:$db);
+
+# Insert values
+my $stmt = $sql.insert("users", {:$name, :$email});
+$db.execute($stmt.sql, $stmt.bind);
+
+# Select values
+my $stmt = $sql.select("users", [:name<CoolDude>], :cols<name email>);
+my @users = $db.execute($stmt.sql, $stmt.bind).allrows;
+
+# Update values
+my $stmt = $sql.update("users", {:email($new-email)}, [:name<CoolDude>]);
+$db.execute($stmt.sql, $stmt.bind);
+
+# Delete values
+my $stmt = $sql.delete("users", [:name<CoolDude>]);
+$db.execute($stmt.sql, $stmt.bind);
 ```
 
 DESCRIPTION
@@ -31,8 +51,8 @@ db
 
 The database handle. Typically this is a handle from [DBIish](DBIish). This object must have a `quote` method that is suitable for quoting column names safely (or escaping the names).
 
-METHODS
-=======
+SQL GENERATION METHODS
+======================
 
 select(Str $table, @where, :$cols)
 ----------------------------------
@@ -96,6 +116,9 @@ See `compare` documentation below for more on the operators.
 Use the `group()` method to make a parenthesized group of items, joined by either `AND` or `OR` depending whether `:and` or `:or` is passed. The `@where` value here is passed recursively into the `where()` method.
 
 The `where` method returns a `Statement` object, documented below.
+
+METHODS FOR WHERE CLAUSES
+=========================
 
 group(@where, :or)
 ------------------

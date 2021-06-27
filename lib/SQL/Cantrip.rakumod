@@ -161,6 +161,24 @@ SQL::Cantrip - generate simple SQL statements
 
 use SQL::Cantrip;
 
+my $sql = SQL::Cantrip.new(:$db);
+
+# Insert values
+my $stmt = $sql.insert("users", {:$name, :$email});
+$db.execute($stmt.sql, $stmt.bind);
+
+# Select values
+my $stmt = $sql.select("users", [:name<CoolDude>], :cols<name email>);
+my @users = $db.execute($stmt.sql, $stmt.bind).allrows;
+
+# Update values
+my $stmt = $sql.update("users", {:email($new-email)}, [:name<CoolDude>]);
+$db.execute($stmt.sql, $stmt.bind);
+
+# Delete values
+my $stmt = $sql.delete("users", [:name<CoolDude>]);
+$db.execute($stmt.sql, $stmt.bind);
+
 =end code
 
 =head1 DESCRIPTION
@@ -181,7 +199,7 @@ Attributes for SQL::Cantrip.
 
 The database handle. Typically this is a handle from L<DBIish>. This object must have a C<quote> method that is suitable for quoting column names safely (or escaping the names).
 
-=head1 METHODS
+=head1 SQL GENERATION METHODS
 
 =head2 select(Str $table, @where, :$cols)
 
@@ -240,6 +258,8 @@ See C<compare> documentation below for more on the operators.
 Use the C<group()> method to make a parenthesized group of items, joined by either C<AND> or C<OR> depending whether C<:and> or C<:or> is passed. The C<@where> value here is passed recursively into the C<where()> method.
 
 The C<where> method returns a C<Statement> object, documented below.
+
+=head1 METHODS FOR WHERE CLAUSES
 
 =head2 group(@where, :or)
 

@@ -12,10 +12,11 @@
   "name": "SQL::Cantrip",
   "perl": "6.d",
   "provides": {
+    "SQL::Cantrip": "lib/SQL/Cantrip.rakumod"
   },
   "resources": [
   ],
-  "source-url": "",
+  "source-url": "https://github.com/avuserow/raku-sql-cantrip.git",
   "tags": [
   ],
   "test-depends": [
