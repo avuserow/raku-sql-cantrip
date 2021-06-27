@@ -1,0 +1,24 @@
+{
+  "auth": "cpan:avuserow",
+  "authors": [
+    "Adrian Kreher"
+  ],
+  "build-depends": [
+  ],
+  "depends": [
+  ],
+  "description": "generate simple SQL statements",
+  "license": "Artistic-2.0",
+  "name": "SQL::Cantrip",
+  "perl": "6.d",
+  "provides": {
+  },
+  "resources": [
+  ],
+  "source-url": "",
+  "tags": [
+  ],
+  "test-depends": [
+  ],
+  "version": "0.0.1"
+}
