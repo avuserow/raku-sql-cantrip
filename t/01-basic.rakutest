@@ -1,6 +1,71 @@
 use Test;
 use SQL::Cantrip;
 
-pass "replace me";
+my $sql = SQL::Cantrip.new;
+
+subtest 'select', {
+    subtest 'simple', {
+        is-deeply $sql.select('table', []).things, ['SELECT * FROM "table"', []];
+    }
+
+    subtest 'columns', {
+        is-deeply $sql.select(:cols<a>, 'table', []).things, ['SELECT "a" FROM "table"', []];
+        is-deeply $sql.select(:cols<a b>, 'table', []).things, ['SELECT "a", "b" FROM "table"', []];
+    }
+
+    subtest 'where', {
+        is-deeply $sql.select(:cols<a>, 'table', [:1a]).things, ['SELECT "a" FROM "table" WHERE "a" = ?', [1]];
+        is-deeply $sql.select(:cols<a b>, 'table', [:1a, :2b]).things, ['SELECT "a", "b" FROM "table" WHERE "a" = ? AND "b" = ?', [1, 2]];
+    }
+}
+
+subtest 'where clause', {
+    subtest 'simple', {
+        is-deeply $sql.where([:1a]).things, ['WHERE "a" = ?', [1]];
+        is-deeply $sql.where([:1a, :2b]).things, ['WHERE "a" = ? AND "b" = ?', [1, 2]];
+    }
+
+    subtest 'single group', {
+        is-deeply $sql.where([$sql.group(:and, [:1a, :2b])]).things, ['WHERE ("a" = ? AND "b" = ?)', [1, 2]];
+        is-deeply $sql.where([$sql.group(:or, [:1a, :2b])]).things, ['WHERE ("a" = ? OR "b" = ?)', [1, 2]];
+    }
+
+    subtest 'multiple groups', {
+        is-deeply $sql.where([
+            $sql.group(:or, [:1a, :2b]),
+            $sql.group(:or, [:3a, :4b]),
+        ]).things, ['WHERE ("a" = ? OR "b" = ?) AND ("a" = ? OR "b" = ?)', [1, 2, 3, 4]];
+    }
+
+    subtest 'custom operator', {
+        is-deeply $sql.where([$sql.compare('a', '<', 5)]).things, ['WHERE "a" < ?', [5]];
+    }
+
+    subtest 'null', {
+        is-deeply $sql.where([:a(Any)]).things, ['WHERE "a" IS NULL', []];
+        is-deeply $sql.where([:a(Any), :1b]).things, ['WHERE "a" IS NULL AND "b" = ?', [1]];
+    }
+}
+
+subtest 'compare method', {
+    subtest 'binary operators', {
+        is-deeply $sql.compare('a', '=', 5).things, ['"a" = ?', [5]];
+        is-deeply $sql.compare('a', 'is', Any).things, ['"a" IS NULL', []];
+        is-deeply $sql.compare('a', 'is not', Any).things, ['"a" IS NOT NULL', []];
+        is-deeply $sql.compare('a', 'IS', Any).things, ['"a" IS NULL', []];
+        is-deeply $sql.compare('a', 'IS NOT', Any).things, ['"a" IS NOT NULL', []];
+    };
+
+    subtest 'in operators', {
+        is-deeply $sql.compare('a', 'IN', [1, 2, 3, 4]).things, ['"a" IN (?, ?, ?, ?)', [1, 2, 3, 4]];
+        is-deeply $sql.compare('a', 'NOT IN', [1, 2, 3, 4]).things, ['"a" NOT IN (?, ?, ?, ?)', [1, 2, 3, 4]];
+    }
+
+    subtest 'between operators', {
+        is-deeply $sql.compare('a', 'BETWEEN', [1, 3]).things, ['"a" BETWEEN ? AND ?', [1, 3]];
+        dies-ok {$sql.compare('a', 'BETWEEN', [1])};
+        dies-ok {$sql.compare('a', 'BETWEEN', [1, 2, 3])};
+    }
+}
 
 done-testing;

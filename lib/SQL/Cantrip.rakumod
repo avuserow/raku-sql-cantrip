@@ -1,6 +1,6 @@
 unit class SQL::Cantrip:ver<0.0.1>:auth<cpan:avuserow>;
 
-has $.db where *.can('quote');
+has $.quote-identifier = '"';
 
 my class Statement {
     has Str $.sql is readonly;
@@ -18,24 +18,28 @@ my class Group {
     has @.items;
 }
 
+method !id-quote(Str $id) {
+    return $.quote-identifier ~ $id ~ $.quote-identifier;
+}
+
 method compare($column, $op, $value) {
     given $op.uc {
         when any(qww/< <= = != >= > IS LIKE ILIKE "NOT LIKE" "NOT ILIKE" "IS NOT"/) {
             if $value.defined {
-                Fragment.new(:sql("$!db.quote($column) $op.uc() ?"), :bind[$value]);
+                Fragment.new(:sql("{self!id-quote($column)} $op.uc() ?"), :bind[$value]);
             } else {
-                Fragment.new(:sql("$!db.quote($column) $op.uc() NULL"), :bind[]);
+                Fragment.new(:sql("{self!id-quote($column)} $op.uc() NULL"), :bind[]);
             }
         }
         when 'IN' | 'NOT IN' {
             my $placeholders = join ', ', ('?' xx $value.elems);
-            Fragment.new(:sql("$!db.quote($column) $op.uc() ($placeholders)"), :bind(|$value));
+            Fragment.new(:sql("{self!id-quote($column)} $op.uc() ($placeholders)"), :bind(|$value));
         }
         when 'BETWEEN' | 'NOT BETWEEN' {
             if $value.elems != 2 {
                 die "Invalid use of operator $op: requires exactly two values, not {$value.elems}";
             }
-            Fragment.new(:sql("$!db.quote($column) $op.uc() ? AND ?"), :bind(|$value));
+            Fragment.new(:sql("{self!id-quote($column)} $op.uc() ? AND ?"), :bind(|$value));
         }
         default {
             die "Unknown operator $op";
@@ -54,8 +58,8 @@ multi method group(@items, :$and!) {
 method select(Str $table, @where, :$cols) {
     # TODO: limit/offset/etc
     # TODO: ordering
-    my $colspec = $cols ?? join ', ', ($!db.quote($_) for |$cols) !! '*';
-    my $sql = "SELECT $colspec FROM $!db.quote($table)";
+    my $colspec = $cols ?? join ', ', (self!id-quote($_) for |$cols) !! '*';
+    my $sql = "SELECT $colspec FROM {self!id-quote($table)}";
 
     my ($where, $where-bind) = self!where-clause(@where);
     $sql ~= $where;
@@ -65,11 +69,11 @@ method select(Str $table, @where, :$cols) {
 }
 
 method insert(Str $table, %set) {
-    my $sql = "INSERT INTO $!db.quote($table)";
+    my $sql = "INSERT INTO {self!id-quote($table)}";
     my (@keys, @bind);
 
     for %set.sort -> $p {
-        push @keys, $!db.quote($p.key);
+        push @keys, self!id-quote($p.key);
         push @bind, $p.value;
     }
 
@@ -79,15 +83,15 @@ method insert(Str $table, %set) {
 }
 
 method update(Str $table, %set, @where) {
-    my $sql = "UPDATE $!db.quote($table) SET ";
+    my $sql = "UPDATE {self!id-quote($table)} SET ";
 
     my (@keys, @bind);
     for %set.sort -> $p {
         if $p.value.defined {
-            push @keys, "{$!db.quote($p.key)} = ?";
+            push @keys, "{self!id-quote($p.key)} = ?";
             push @bind, $p.value;
         } else {
-            push @keys, "{$!db.quote($p.key)} = NULL";
+            push @keys, "{self!id-quote($p.key)} = NULL";
         }
     }
     $sql ~= @keys.join(', ');
@@ -100,7 +104,7 @@ method update(Str $table, %set, @where) {
 }
 
 method delete(Str $table, @where) {
-    my $sql = "DELETE FROM $!db.quote($table)";
+    my $sql = "DELETE FROM self!id-quote($table)";
     my ($where, $where-bind) = self.where(@where);
     $sql ~= ' ' ~ $where;
     return Statement.new(:$sql, :bind(|$where-bind));
@@ -134,10 +138,10 @@ method !inner-where(@where, :$logic-operator = 'AND') {
             }
             when Pair {
                 if $item.value.defined {
-                    push @parts, "$!db.quote($item.key) = ?";
+                    push @parts, "{self!id-quote($item.key)} = ?";
                     push @bind, $item.value;
                 } else {
-                    push @parts, "$!db.quote($item.key) IS NULL";
+                    push @parts, "{self!id-quote($item.key)} IS NULL";
                 }
             }
             default {
@@ -161,7 +165,7 @@ SQL::Cantrip - generate simple SQL statements
 
 use SQL::Cantrip;
 
-my $sql = SQL::Cantrip.new(:$db);
+my $sql = SQL::Cantrip.new;
 
 # Insert values
 my $stmt = $sql.insert("users", {:$name, :$email});
@@ -195,9 +199,9 @@ SQL::Cantrip does not try to support many parts of SQL. Handwritten SQL can be m
 
 Attributes for SQL::Cantrip.
 
-=head2 db
+=head2 quote-identifier
 
-The database handle. Typically this is a handle from L<DBIish>. This object must have a C<quote> method that is suitable for quoting column names safely (or escaping the names).
+Quote character to use around column names and other identifiers. Defaults to double quotes (C<">).
 
 =head1 SQL GENERATION METHODS
 

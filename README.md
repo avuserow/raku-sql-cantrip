@@ -11,7 +11,7 @@ SYNOPSIS
 ```raku
 use SQL::Cantrip;
 
-my $sql = SQL::Cantrip.new(:$db);
+my $sql = SQL::Cantrip.new;
 
 # Insert values
 my $stmt = $sql.insert("users", {:$name, :$email});
@@ -46,10 +46,10 @@ ATTRIBUTES
 
 Attributes for SQL::Cantrip.
 
-db
---
+quote-identifier
+----------------
 
-The database handle. Typically this is a handle from [DBIish](DBIish). This object must have a `quote` method that is suitable for quoting column names safely (or escaping the names).
+Quote character to use around column names and other identifiers. Defaults to double quotes (`"`).
 
 SQL GENERATION METHODS
 ======================
