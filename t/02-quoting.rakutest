@@ -1,0 +1,19 @@
+use Test;
+use SQL::Cantrip;
+
+my $sql = SQL::Cantrip.new;
+
+subtest 'basic quoting', {
+    subtest 'table name', {
+        is-deeply $sql.select('"table"', []).things, ['SELECT * FROM "\"table\""', []], 'quotes';
+        is-deeply $sql.select('foo.bar[]', []).things, ['SELECT * FROM "foo\.bar\[\]"', []], 'misc punct';
+    }
+
+    subtest 'sql injection on column', {
+        is-deeply $sql.select('table', [
+            $sql.compare(q{"; --}, '=', "hello world"),
+        ]).things, ['SELECT * FROM "table" WHERE "\"\; \-\-" = ?', ["hello world"]];
+    }
+}
+
+done-testing;

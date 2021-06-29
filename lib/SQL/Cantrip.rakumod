@@ -19,7 +19,7 @@ my class Group {
 }
 
 method !id-quote(Str $id) {
-    return $.quote-identifier ~ $id ~ $.quote-identifier;
+    return $!quote-identifier ~ $id.subst(:g, /<punct>/, {"\\" ~ $_}) ~ $!quote-identifier;
 }
 
 method compare($column, $op, $value) {
