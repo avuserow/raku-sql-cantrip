@@ -1,7 +1,9 @@
 use Test;
+use DBIish;
 use SQL::Cantrip;
 
-my $sql = SQL::Cantrip.new;
+my $db = DBIish.connect("SQLite", :database<:memory:>);
+my $sql = SQL::Cantrip.new(:$db);
 
 subtest 'select', {
     subtest 'simple', {

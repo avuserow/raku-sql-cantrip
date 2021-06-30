@@ -6,6 +6,7 @@
   "build-depends": [
   ],
   "depends": [
+    "DBIish"
   ],
   "description": "generate simple SQL statements",
   "license": "Artistic-2.0",

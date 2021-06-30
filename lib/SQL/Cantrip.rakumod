@@ -1,6 +1,9 @@
 unit class SQL::Cantrip:ver<0.0.1>:auth<cpan:avuserow>;
 
-has $.quote-identifier = '"';
+use DBDish;
+
+has DBDish::Connection $.db;
+
 
 my class Statement {
     has Str $.sql is readonly;
@@ -19,7 +22,7 @@ my class Group {
 }
 
 method !id-quote(Str $id) {
-    return $!quote-identifier ~ $id.subst(:g, /<punct>/, {"\\" ~ $_}) ~ $!quote-identifier;
+    return $!db.quote($id, :as-id);
 }
 
 method compare($column, $op, $value) {

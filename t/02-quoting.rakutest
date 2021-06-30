@@ -1,18 +1,14 @@
 use Test;
+use DBIish;
 use SQL::Cantrip;
 
-my $sql = SQL::Cantrip.new;
+my $db = DBIish.connect("SQLite", :database<:memory:>);
+my $sql = SQL::Cantrip.new(:$db);
 
 subtest 'basic quoting', {
     subtest 'table name', {
-        is-deeply $sql.select('"table"', []).things, ['SELECT * FROM "\"table\""', []], 'quotes';
-        is-deeply $sql.select('foo.bar[]', []).things, ['SELECT * FROM "foo\.bar\[\]"', []], 'misc punct';
-    }
-
-    subtest 'sql injection on column', {
-        is-deeply $sql.select('table', [
-            $sql.compare(q{"; --}, '=', "hello world"),
-        ]).things, ['SELECT * FROM "table" WHERE "\"\; \-\-" = ?', ["hello world"]];
+        is-deeply $sql.select('"table"', []).things, ['SELECT * FROM """table"""', []], 'quotes';
+        is-deeply $sql.select('foo.bar[]', []).things, ['SELECT * FROM "foo.bar[]"', []], 'misc punct';
     }
 }
 
