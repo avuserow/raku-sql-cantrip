@@ -5,16 +5,32 @@ use DBDish;
 has DBDish::Connection $.db;
 
 
-my class Statement {
+my class BaseStatement {
     has Str $.sql is readonly;
     has @.bind is readonly;
 
     method things {
         return [$.sql, @.bind];
     }
+
+    method sink {
+        warn "Statement called in sink context";
+    }
 };
 
-my class Fragment is Statement {}
+my class Statement is BaseStatement {
+    has $!db;
+
+    method execute {
+        $!db.execute($.sql, |@.bind);
+    }
+
+    method fetchall {
+        $!db.execute($.sql, |@.bind).allrows(:array-of-hash);
+    }
+}
+
+my class Fragment is BaseStatement {}
 
 my class Group {
     has $.type;
@@ -99,7 +115,7 @@ method update(Str $table, %set, @where) {
     }
     $sql ~= @keys.join(', ');
 
-    my ($where, $where-bind) = self.where(@where);
+    my ($where, $where-bind) = self!where-clause(@where);
     $sql ~= ' ' ~ $where;
     push @bind, |$where-bind;
 
@@ -107,8 +123,8 @@ method update(Str $table, %set, @where) {
 }
 
 method delete(Str $table, @where) {
-    my $sql = "DELETE FROM self!id-quote($table)";
-    my ($where, $where-bind) = self.where(@where);
+    my $sql = "DELETE FROM {self!id-quote($table)}";
+    my ($where, $where-bind) = self!where-clause(@where);
     $sql ~= ' ' ~ $where;
     return Statement.new(:$sql, :bind(|$where-bind));
 }
