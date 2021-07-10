@@ -21,6 +21,59 @@ subtest 'select', {
     }
 }
 
+subtest 'new where clause syntax', {
+    subtest 'default pairs for equality', {
+        is-deeply $sql.where([:1a]).things, ['WHERE "a" = ?', [1]];
+        is-deeply $sql.where([:1a, :2b]).things, ['WHERE "a" = ? AND "b" = ?', [1, 2]];
+        is-deeply $sql.where([:1a, :2b, :3a]).things, ['WHERE "a" = ? AND "b" = ? AND "a" = ?', [1, 2, 3]];
+    }
+
+    subtest 'specified operators', {
+        is-deeply $sql.where([compare(:op('='), :cmp(:1a))]).things, ['WHERE "a" = ?', [1]];
+        is-deeply $sql.where([compare(:op('>'), :cmp(:1a))]).things, ['WHERE "a" > ?', [1]];
+        is-deeply $sql.where([compare(:op<LIKE>, :cmp(:a<foobar>))]).things, ['WHERE "a" LIKE ?', ['foobar']];
+
+        is-deeply $sql.where([
+            compare(:op('>'), :cmp(:1a)),
+            compare(:op('<'), :cmp(:9a)),
+        ]).things, ['WHERE "a" > ? AND "a" < ?', [1, 9]];
+    }
+
+    subtest 'subgroups', {
+        is-deeply $sql.where([
+            {:and, :items[:1a, :2b]},
+        ]).things, ['WHERE ("a" = ? AND "b" = ?)', [1, 2]];
+
+        is-deeply $sql.where([
+            {:or, :items[:1a, :2b]},
+        ]).things, ['WHERE ("a" = ? OR "b" = ?)', [1, 2]];
+
+        is-deeply $sql.where([
+            :1a,
+            {:or, :items[
+                :2a,
+                {:and, :items[:2b, :3c]},
+            ]},
+        ]).things, ['WHERE "a" = ? AND ("a" = ? OR ("b" = ? AND "c" = ?))', [1, 2, 2, 3]];
+    }
+
+    subtest 'invalid', {
+        dies-ok {$sql.where([{}])}, 'empty';
+        dies-ok {$sql.where([{:and}])}, ':and with no items';
+        dies-ok {$sql.where([{:or}])}, ':or with no items';
+        dies-ok {$sql.where([{:and, :or, :items[:1a]}])}, ':and :or simultaneously';
+
+        dies-ok {$sql.where([{:and, :items[:1a], :op('<')}])}, ':and and :items with :op';
+        dies-ok {$sql.where([{:and, :op('<'), :cmp(:1a)}])}, ':and with :op and :cmp';
+        dies-ok {$sql.where([{:or, :items[:1a], :op('<')}])}, ':or and :items with :op';
+        dies-ok {$sql.where([{:or, :op('<'), :cmp(:1a)}])}, ':or with :op and :cmp';
+
+        dies-ok {$sql.where([{:other}])}, 'unknown key';
+        dies-ok {$sql.where([{:op('<')}])}, ':op without :cmp';
+        dies-ok {$sql.where([{:op('<'), :1a}])}, ':op with forgotten :cmp';
+    }
+}
+
 subtest 'where clause', {
     subtest 'simple', {
         is-deeply $sql.where([:1a]).things, ['WHERE "a" = ?', [1]];
