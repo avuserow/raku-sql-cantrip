@@ -18,17 +18,7 @@ my class BaseStatement {
     }
 };
 
-my class Statement is BaseStatement {
-    has $!db;
-
-    method execute {
-        $!db.execute($.sql, |@.bind);
-    }
-
-    method fetchall {
-        $!db.execute($.sql, |@.bind).allrows(:array-of-hash);
-    }
-}
+my class Statement is BaseStatement {}
 
 my class Fragment is BaseStatement {}
 
@@ -41,36 +31,48 @@ method !id-quote(Str $id) {
     return $!db.quote($id, :as-id);
 }
 
-method compare($column, $op, $value) {
-    given $op.uc {
-        when any(qww/< <= = != >= > IS LIKE ILIKE "NOT LIKE" "NOT ILIKE" "IS NOT"/) {
-            if $value.defined {
-                Fragment.new(:sql("{self!id-quote($column)} $op.uc() ?"), :bind[$value]);
-            } else {
-                Fragment.new(:sql("{self!id-quote($column)} $op.uc() NULL"), :bind[]);
+class Comparison {
+    has Str $!column;
+    has Str $!op;
+    has $!value;
+
+    submethod BUILD(:$!column, :$!op, :$!value) {}
+
+    method to-fragment(&id-quote) {
+        given $!op.uc {
+            when any(qww/< <= = != >= > IS LIKE ILIKE "NOT LIKE" "NOT ILIKE" "IS NOT"/) {
+                if $!value.defined {
+                    Fragment.new(:sql("&id-quote($!column) $!op.uc() ?"), :bind[$!value]);
+                } else {
+                    Fragment.new(:sql("&id-quote($!column) $!op.uc() NULL"), :bind[]);
+                }
             }
-        }
-        when 'IN' | 'NOT IN' {
-            my $placeholders = join ', ', ('?' xx $value.elems);
-            Fragment.new(:sql("{self!id-quote($column)} $op.uc() ($placeholders)"), :bind(|$value));
-        }
-        when 'BETWEEN' | 'NOT BETWEEN' {
-            if $value.elems != 2 {
-                die "Invalid use of operator $op: requires exactly two values, not {$value.elems}";
+            when 'IN' | 'NOT IN' {
+                my $placeholders = join ', ', ('?' xx $!value.elems);
+                Fragment.new(:sql("&id-quote($!column) $!op.uc() ($placeholders)"), :bind(|$!value));
             }
-            Fragment.new(:sql("{self!id-quote($column)} $op.uc() ? AND ?"), :bind(|$value));
-        }
-        default {
-            die "Unknown operator $op";
+            when 'BETWEEN' | 'NOT BETWEEN' {
+                if $!value.elems != 2 {
+                    die "Invalid use of operator $!op: requires exactly two values, not {$!value.elems}";
+                }
+                Fragment.new(:sql("&id-quote($!column) $!op.uc() ? AND ?"), :bind(|$!value));
+            }
+            default {
+                die "Unknown operator $!op";
+            }
         }
     }
 }
 
-multi method group(@items, :$or!) {
+sub compare(:$op, Pair :$cmp) is export {
+    return Comparison.new(:column($cmp.key), :op($op.join(' ')), :value($cmp.value));
+}
+
+multi sub group(@items, :$or!) is export {
     Group.new(:type('OR'), :@items);
 }
 
-multi method group(@items, :$and!) {
+multi sub group(@items, :$and!) is export {
     Group.new(:type('AND'), :@items);
 }
 
@@ -151,9 +153,10 @@ method !inner-where(@where, :$logic-operator = 'AND') {
                 push @parts, "($inner-sql)";
                 append @bind, @inner-bind;
             }
-            when Fragment {
-                push @parts, $item.sql;
-                append @bind, $item.bind;
+            when Comparison {
+                my $fragment = $item.to-fragment({self!id-quote($_)});
+                push @parts, $fragment.sql;
+                append @bind, $fragment.bind;
             }
             when Pair {
                 if $item.value.defined {
@@ -164,7 +167,7 @@ method !inner-where(@where, :$logic-operator = 'AND') {
                 }
             }
             default {
-                die "Don't know how to handle a $_.WHAT()";
+                die "Don't know how to handle a parameter of type {$item.^name}";
             }
         }
     }
@@ -202,6 +205,16 @@ $db.execute($stmt.sql, $stmt.bind);
 my $stmt = $sql.delete("users", [:name<CoolDude>]);
 $db.execute($stmt.sql, $stmt.bind);
 
+# More complicated where clause (can also be used in the where parameter above)
+my $stmt = $sql.where([group(:or, [
+        :foo(Any),
+        compare(:op<LIKE>, :cmp(:$foo)),
+    ]),
+    compare(:op<IN>, :cmp(:bar[1, 2, 3]),
+]);
+# generates SQL: WHERE ("foo" IS NULL OR "foo" LIKE ?) AND "bar" IN (?, ?, ?)
+# bind values: [$foo, 1, 2, 3]
+
 =end code
 
 =head1 DESCRIPTION
@@ -213,6 +226,8 @@ This module aims to make it easy and safe to do simple operations with varying c
 SQL::Cantrip is not an ORM. This may work better for simple applications or when you want to avoid having an object per row.
 
 SQL::Cantrip does not try to support many parts of SQL. Handwritten SQL can be more reliable and clearer for more complex queries. SQL::Cantrip does provide a C<where> method, which generates a C<WHERE> clause that can be combined with handwritten SQL.
+
+Regarding the name "Cantrip", this module provides a little magic, but nothing high level.
 
 =head1 ATTRIBUTES
 
@@ -270,19 +285,13 @@ Pairs are simple equality comparisons for the given column (the key) and the val
 
 If the Pair's value is not defined, then the SQL is instead C<"column" IS NULL>.
 
-=head3 compare($column, $operator, $value) method call
+=head3 Other functions
 
-Use the C<compare($column, $operator, $value)> method to compare using the provided operator. In general, this SQL is in the form C<"column" $operator ?> (with C<column> quoted appropriately, and with C<value> in the bind parameters).
+Use the exported C<compare> and C<group> functions (documented below) to generate comparisons and parenthesized groups.
 
-See C<compare> documentation below for more on the operators.
+=head1 FUNCTIONS FOR WHERE CLAUSES
 
-=head3 group(@where, :and | :or)
-
-Use the C<group()> method to make a parenthesized group of items, joined by either C<AND> or C<OR> depending whether C<:and> or C<:or> is passed. The C<@where> value here is passed recursively into the C<where()> method.
-
-The C<where> method returns a C<Statement> object, documented below.
-
-=head1 METHODS FOR WHERE CLAUSES
+These functions are exported and return objects used in the C<where> clauses.
 
 =head2 group(@where, :or)
 
@@ -292,9 +301,13 @@ Generate a parenthesized group in a C<where> clause, joined by C<OR> rather than
 
 Generate a parenthesized group in a C<where> clause, joined by C<AND>.
 
-=head2 compare($column, $operator, $value)
+=head2 compare(Str :$op, Pair :$cmp)
 
-Generate a comparison in a C<where> clause using the specified operator. The following operators are permitted:
+Generate a comparison in a C<where> clause using the specified operator (C<$op>). The pair C<$cmp> is a column / value pair (like equality comparisons.)
+
+For example: C<compare(:op<LIKE>, :cmp(:$foo))> generates the SQL C<foo LIKE ?> with the bind value C<$foo>.
+
+The following operators are permitted:
 
 Standard comparison operators: C<< < >>, C<< <= >>, C<=>, C<!=>, C<< >= >>, C<< > >>, C<IS>, C<LIKE>, C<NOT LIKE>, C<IS NOT>. If C<$value> is defined, generates C<"$column" $operator ?> (and puts C<$value> into the bind list), otherwise generates C<"$column" $operator NULL>.
 
