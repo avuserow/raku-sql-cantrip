@@ -4,6 +4,10 @@ use DBDish;
 
 has DBDish::Connection $.db;
 
+# used to replace IN/NOT IN with empty lists
+my $sql-false-expr = '0=1';
+my $sql-true-expr = '1=1';
+
 
 my class BaseStatement {
     has Str $.sql is readonly;
@@ -48,8 +52,16 @@ class Comparison {
                 }
             }
             when 'IN' | 'NOT IN' {
-                my $placeholders = join ', ', ('?' xx $!value.elems);
-                Fragment.new(:sql("&id-quote($!column) $!op.uc() ($placeholders)"), :bind(|$!value));
+                if $!value.elems == 0 {
+                    if $!op.uc eq 'IN' {
+                        Fragment.new(:sql($sql-false-expr), :bind[]);
+                    } elsif $!op.uc eq 'NOT IN' {
+                        Fragment.new(:sql($sql-true-expr), :bind[]);
+                    }
+                } else {
+                    my $placeholders = join ', ', ('?' xx $!value.elems);
+                    Fragment.new(:sql("&id-quote($!column) $!op.uc() ($placeholders)"), :bind(|$!value));
+                }
             }
             when 'BETWEEN' | 'NOT BETWEEN' {
                 if $!value.elems != 2 {

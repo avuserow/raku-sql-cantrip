@@ -84,6 +84,12 @@ subtest 'where clause', {
         is-deeply $sql.where([:a(Any)]).things, ['WHERE "a" IS NULL', []];
         is-deeply $sql.where([:a(Any), :1b]).things, ['WHERE "a" IS NULL AND "b" = ?', [1]];
     }
+
+    subtest 'in/not_in empty list', {
+        my @empty;
+        is-deeply $sql.where([compare(:op<IN>, :cmp(:foo(@empty)))]).things, ['WHERE 0=1', []];
+        is-deeply $sql.where([compare(:op<NOT IN>, :cmp(:foo(@empty)))]).things, ['WHERE 1=1', []];
+    }
 }
 
 subtest 'compare function', {

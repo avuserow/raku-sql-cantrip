@@ -28,6 +28,16 @@ $db.execute($stmt.sql, $stmt.bind);
 # Delete values
 my $stmt = $sql.delete("users", [:name<CoolDude>]);
 $db.execute($stmt.sql, $stmt.bind);
+
+# More complicated where clause (can also be used in the where parameter above)
+my $stmt = $sql.where([group(:or, [
+        :foo(Any),
+        compare(:op<LIKE>, :cmp(:$foo)),
+    ]),
+    compare(:op<IN>, :cmp(:bar[1, 2, 3]),
+]);
+# generates SQL: WHERE ("foo" IS NULL OR "foo" LIKE ?) AND "bar" IN (?, ?, ?)
+# bind values: [$foo, 1, 2, 3]
 ```
 
 DESCRIPTION
@@ -40,6 +50,8 @@ This module aims to make it easy and safe to do simple operations with varying c
 SQL::Cantrip is not an ORM. This may work better for simple applications or when you want to avoid having an object per row.
 
 SQL::Cantrip does not try to support many parts of SQL. Handwritten SQL can be more reliable and clearer for more complex queries. SQL::Cantrip does provide a `where` method, which generates a `WHERE` clause that can be combined with handwritten SQL.
+
+Regarding the name "Cantrip", this module provides a little magic, but nothing high level.
 
 ATTRIBUTES
 ==========
@@ -105,20 +117,14 @@ Pairs are simple equality comparisons for the given column (the key) and the val
 
 If the Pair's value is not defined, then the SQL is instead `"column" IS NULL`.
 
-### compare($column, $operator, $value) method call
+### Other functions
 
-Use the `compare($column, $operator, $value)` method to compare using the provided operator. In general, this SQL is in the form `"column" $operator ?` (with `column` quoted appropriately, and with `value` in the bind parameters).
+Use the exported `compare` and `group` functions (documented below) to generate comparisons and parenthesized groups.
 
-See `compare` documentation below for more on the operators.
+FUNCTIONS FOR WHERE CLAUSES
+===========================
 
-### group(@where, :and | :or)
-
-Use the `group()` method to make a parenthesized group of items, joined by either `AND` or `OR` depending whether `:and` or `:or` is passed. The `@where` value here is passed recursively into the `where()` method.
-
-The `where` method returns a `Statement` object, documented below.
-
-METHODS FOR WHERE CLAUSES
-=========================
+These functions are exported and return objects used in the `where` clauses.
 
 group(@where, :or)
 ------------------
@@ -130,10 +136,14 @@ group(@where, :and)
 
 Generate a parenthesized group in a `where` clause, joined by `AND`.
 
-compare($column, $operator, $value)
------------------------------------
+compare(Str :$op, Pair :$cmp)
+-----------------------------
 
-Generate a comparison in a `where` clause using the specified operator. The following operators are permitted:
+Generate a comparison in a `where` clause using the specified operator (`$op`). The pair `$cmp` is a column / value pair (like equality comparisons.)
+
+For example: `compare(:op<LIKE>, :cmp(:$foo))` generates the SQL `foo LIKE ?` with the bind value `$foo`.
+
+The following operators are permitted:
 
 Standard comparison operators: `< `, `<= `, `=`, `!=`, `>= `, `> `, `IS`, `LIKE`, `NOT LIKE`, `IS NOT`. If `$value` is defined, generates `"$column" $operator ?` (and puts `$value` into the bind list), otherwise generates `"$column" $operator NULL`.
 
