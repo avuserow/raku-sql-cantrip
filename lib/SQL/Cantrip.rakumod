@@ -130,7 +130,7 @@ method update(Str $table, %set, @where) {
     $sql ~= @keys.join(', ');
 
     my ($where, $where-bind) = self!where-clause(@where);
-    $sql ~= ' ' ~ $where;
+    $sql ~= $where;
     push @bind, |$where-bind;
 
     return Statement.new(:$sql, :@bind);
@@ -139,7 +139,7 @@ method update(Str $table, %set, @where) {
 method delete(Str $table, @where) {
     my $sql = "DELETE FROM {self!id-quote($table)}";
     my ($where, $where-bind) = self!where-clause(@where);
-    $sql ~= ' ' ~ $where;
+    $sql ~= $where;
     return Statement.new(:$sql, :bind(|$where-bind));
 }
 

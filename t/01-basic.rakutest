@@ -21,6 +21,17 @@ subtest 'select', {
     }
 }
 
+subtest 'update', {
+    subtest 'simple', {
+        is-deeply $sql.update('table', {:foo<bar>}, []).things, ['UPDATE "table" SET "foo" = ?', ["bar"]];
+        is-deeply $sql.update('table', {:foo<bar>}, [:1a]).things, ['UPDATE "table" SET "foo" = ? WHERE "a" = ?', ["bar", 1]];
+    }
+
+    subtest 'null', {
+        is-deeply $sql.update('table', {:foo<bar>, :bar(Any)}, []).things, ['UPDATE "table" SET "bar" = NULL, "foo" = ?', ["bar"]];
+    }
+}
+
 subtest 'new where clause syntax', {
     subtest 'default pairs for equality', {
         is-deeply $sql.where([:1a]).things, ['WHERE "a" = ?', [1]];
